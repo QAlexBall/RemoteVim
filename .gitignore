@@ -1,6 +1,5 @@
 # Created by .ignore support plugin (hsz.mobi)
 config.json
 .idea/
-bin/
 __pycache__/
 

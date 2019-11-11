@@ -1,0 +1,4 @@
+dir=`(dirname $0)`
+CVIM=`(dirname $dir)`
+python $CVIM/cvim.py --command "$1 $2 $3 $4 $5 $6"
+
