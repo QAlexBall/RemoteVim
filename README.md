@@ -14,3 +14,11 @@ show current_path and vim remote file.
 cvim ls
 python remote_vim.py --file filename
 ```
+
+```
+cd RemoteVim/
+chmod u+x *
+vim ~/.bashrc
+export PATH="path_to_RemoteVim/bin:$PATH"
+source ~/.bashrc
+```

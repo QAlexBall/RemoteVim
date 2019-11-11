@@ -1,0 +1,4 @@
+dir=`(dirname $0)`
+SRC=`(dirname $dir)`
+python $SRC/remote_vim.py --file "$1"
+
