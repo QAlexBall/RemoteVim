@@ -1,6 +1,6 @@
 import os
 import click
-from cvim import Session, read_config
+from session import Session, read_config
 
 
 class RemoteVim:

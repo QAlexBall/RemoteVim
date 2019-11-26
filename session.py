@@ -73,7 +73,7 @@ class Session:
                     print("no such direction!")
             else:
                 print("cd need only one input.")
-        if command_split[0] == "ls":
+        elif command_split[0] == "ls":
             command = "ls " + self.current_path
         return command
 
