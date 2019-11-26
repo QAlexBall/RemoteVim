@@ -16,6 +16,5 @@ int main() {
     for (auto & it : out) {
         spdlog::info("item begin =>{}<= end", it);
     }
-
 }
 

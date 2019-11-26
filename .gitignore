@@ -3,5 +3,6 @@ config.json
 .idea/
 __pycache__/
 cmake-build-debug/
-
+.vscode
+build/
 
