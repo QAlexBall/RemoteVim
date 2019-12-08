@@ -1,11 +1,12 @@
 """
 RVim
-TODO: How to keep this Session?
+Use to find correct file in remote host.
 """
 import os
 import json
 import click
 import paramiko
+from utils.session_utils import write_config, read_config
 
 
 class Session:
@@ -17,9 +18,10 @@ class Session:
         self.port = port
         self.current_path = current_path
         self.ssh = None
+        self.connection = self.connect()
 
     def __str__(self):
-        return "{} in {} at {}".format(
+        return "<Session> {} in {} at {}".format(
             self.username,
             self.hostname,
             self.current_path
@@ -28,12 +30,10 @@ class Session:
     def connect(self):
         """ create ssh client """
         connection = False
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+        self.ssh = paramiko.SSHClient()
+        self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy)
         try:
-            ssh.connect(
-                hostname=self.hostname, port=self.port, username=self.username)
-            self.ssh = ssh
+            self.ssh.connect(hostname=self.hostname, port=self.port, username=self.username)
             connection = True
         except Exception as e:
             print(e)
@@ -77,51 +77,60 @@ class Session:
             command = "ls " + self.current_path
         return command
 
-
-def read_config(config_path=None):
-    if config_path is None:
-        config_path = os.path.abspath(os.path.dirname(__file__)) + "/config.json"
-    config_file = open(config_path, 'r')
-    config = json.load(config_file)
-    config_file.close()
-    return config
-
-
-def change_current_path():
-    pass
+    def run_command(self, command):
+        if self.connection:
+            print("[remote info] => \n[session] => in {}@{} at {}".format(
+                self.username, self.hostname, self.current_path
+            ))
+            stdin, stdout, stderr = self.ssh.exec_command(self.analysis_command(command))
+            print("[command] => " + command + '\n' + stdout.read().decode())
+        else:
+            print("[error] connection error! please check your input")
 
 
-def write_config(config):
-    config_path = os.path.abspath(os.path.dirname(__file__)) + "/config.json"
-    config_file = open(config_path, 'w')
-    json.dump(config, config_file, indent=4)
-    config_file.close()
+def create_session(username, hostname, port, config_path):
+    config = read_config()
+    username = username if username != config['username'] and username is not None else config['username']
+    hostname = hostname if hostname != config['hostname'] and hostname is not None else config['hostname']
+    port = port if port != config['port'] and port is not None else config['port']
+    current_path = config['current_path']
+    if username != config['username'] or hostname != config['hostname'] or port != config['port']:
+        config['username'] = username
+        config['hostname'] = hostname
+        config['port'] = port
+        config['current_path'] = current_path = "~"
+        write_config(config, config_path)
+    session = Session(username, hostname, port, current_path)
+    return session
+
+
+def dispatcher(session):
+    """
+    as an consumer for command
+    as an producer for output
+    TODO:
+     ------------------      -----------      -----------------
+    | command_producer | => ｜dispatcher｜ => | output_consumer |
+     ------------------      -----------      -----------------
+    """
+
+    command = yield
+    while True:
+        stdin, stdout, stderr = session.ssh.exec_command(session.analysis_command(command))
+        print("[command] => " + command + '\n' + stdout.read().decode())
+        output = stdout.read().decode()
+        yield output
 
 
 @click.command()
 @click.option("--username", default=None)
 @click.option("--hostname", default=None)
 @click.option("--port", default=None)
+@click.option("--config_path", default=None)
 @click.option("--command", default="ls")
-def main(username, hostname, port, command):
-    config = read_config()
-
-    username = username if username != config['username'] and username is not None else config['username']
-    hostname = hostname if hostname != config['hostname'] and hostname is not None else config['hostname']
-    port = port if port != config['port'] and port is not None else config['port']
-    current_path = config['current_path']
-    session = Session(username, hostname, port, current_path)
-    connection = session.connect()
-    if connection:
-        print("[remote info] => \n[session] => in {}@{} at {}".format(
-            username, hostname, current_path
-        ))
-        if username != config['username'] or hostname != config['hostname'] or port != config['port']:
-            write_config()
-        stdin, stdout, stderr = session.ssh.exec_command(session.analysis_command(command))
-        print("[command] => " + command + '\n' + stdout.read().decode())
-    else:
-        print("[error] connection error! please check your input")
+def main(username, hostname, port, command, config_path):
+    session = create_session(username, hostname, port, config_path)
+    session.run_command(command)
 
 
 if __name__ == "__main__":

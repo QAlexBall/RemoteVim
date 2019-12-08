@@ -13,8 +13,7 @@ int main() {
     std::cout << host.get_username() << std::endl;
     session.set_current_path("/home/chris");
     auto out = session.get_output("ls");
-    for (auto & it : out) {
+    for (auto & it : *out) {
         spdlog::info("item begin =>{}<= end", it);
     }
 }
-

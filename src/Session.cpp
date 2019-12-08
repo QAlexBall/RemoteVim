@@ -6,12 +6,13 @@
 #include <spdlog/spdlog.h>
 #include "Session.h"
 
-std::vector<std::string> Session::get_output(const std::string &c) {
+std::shared_ptr<std::vector<std::string>> Session::get_output(const std::string &c) {
     FILE *fp;
     char buff[1000];
-    std::vector<std::string> result;
+    std::shared_ptr<std::vector<std::string>> result(new std::vector<std::string>);
     fp = popen("ls", "r");
-    spdlog::info("exec command in {}@{}:{} at {}",
+    spdlog::info("exec command {} in {}@{}:{} at {}",
+                 c,
                  host.get_username(),
                  host.get_hostname(),
                  host.get_port(),
@@ -19,7 +20,7 @@ std::vector<std::string> Session::get_output(const std::string &c) {
     while (fgets(buff, sizeof(buff), fp) != nullptr) {
         std::string item = buff;
         item.erase(item.find('\n'), 2);
-        result.emplace_back(item);
+        result->emplace_back(item);
     }
     return result;
 }
