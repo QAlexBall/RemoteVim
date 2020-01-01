@@ -2,11 +2,13 @@
 RVim
 Use to find correct file in remote host.
 """
-import os
-import json
 import click
 import paramiko
+from functools import wraps
+from more_itertools import consumer
 from utils.session_utils import write_config, read_config
+
+from cmd_observer import CmdObserver, Cd, Ls
 
 
 class Session:
@@ -18,6 +20,7 @@ class Session:
         self.port = port
         self.current_path = current_path
         self.ssh = None
+        self.cmd_observer_dict = {}
         self.connection = self.connect()
 
     def __str__(self):
@@ -33,7 +36,11 @@ class Session:
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy)
         try:
-            self.ssh.connect(hostname=self.hostname, port=self.port, username=self.username)
+            self.ssh.connect(
+                hostname=self.hostname,
+                port=self.port,
+                username=self.username
+            )
             connection = True
         except Exception as e:
             print(e)
@@ -43,7 +50,14 @@ class Session:
         return self.current_path
 
     def get_vim_command(self):
-        return "vim scp://{}@{}/{}".format(self.username, self.hostname, self.current_path)
+        return "vim scp://{}@{}/{}".format(
+            self.username,
+            self.hostname,
+            self.current_path
+        )
+
+    def register(self, key: str, observer: CmdObserver):
+        self.cmd_observer_dict[key] = observer
 
     def analysis_command(self, command):
         """
@@ -52,8 +66,21 @@ class Session:
         """
         command_split = command.split(' ')
         command_split = list(filter(lambda x: x != "", command_split))
+        if command_split[0] in self.cmd_observer_dict:
+            cmd = self.cmd_observer_dict[command_split[0]]
+            cmd.command = command
+            cmd.execute()
+        return command
+
+        # for command_split[0] in self.cmd_observer_list:
+
+        # else:
+        #     print("didn't support that command")
+        """
         if command_split[0] == "cd":
-            _, stdout, _ = self.ssh.exec_command(self.analysis_command("ls " + self.current_path))
+            _, stdout, _ = self.ssh.exec_command(
+                self.analysis_command("ls " + self.current_path)
+            )
             stdout = stdout.read().decode()
             config = read_config()
             if len(command_split) == 2:
@@ -76,16 +103,31 @@ class Session:
         elif command_split[0] == "ls":
             command = "ls " + self.current_path
         return command
+        """
 
     def run_command(self, command):
         if self.connection:
             print("[remote info] => \n[session] => in {}@{} at {}".format(
                 self.username, self.hostname, self.current_path
             ))
-            stdin, stdout, stderr = self.ssh.exec_command(self.analysis_command(command))
+            command = self.analysis_command(command)
+            _, stdout, _ = self.ssh.exec_command(command)
             print("[command] => " + command + '\n' + stdout.read().decode())
         else:
             print("[error] connection error! please check your input")
+
+
+@consumer
+def cd():
+    output = None
+    while True:
+        command = yield output
+
+
+@consumer
+def ls():
+    output = None
+    yield output
 
 
 def create_session(username, hostname, port, config_path):
@@ -116,7 +158,9 @@ def dispatcher(session):
 
     command = yield
     while True:
-        stdin, stdout, stderr = session.ssh.exec_command(session.analysis_command(command))
+        _, stdout, _ = session.ssh.exec_command(
+            session.analysis_command(command)
+        )
         print("[command] => " + command + '\n' + stdout.read().decode())
         output = stdout.read().decode()
         yield output
@@ -130,6 +174,8 @@ def dispatcher(session):
 @click.option("--command", default="ls")
 def main(username, hostname, port, command, config_path):
     session = create_session(username, hostname, port, config_path)
+    session.register("cd", Cd("cd"))
+    session.register("ls", Ls("ls"))
     session.run_command(command)
 
 
